@@ -9,7 +9,7 @@ use std::{
 
 use bincode;
 
-use crate::countdown::countdown;
+use crate::countdown::start_countdown;
 use crate::types::Message;
 
 pub fn run_daemon(socket_path: &str) -> std::io::Result<()> {
@@ -28,7 +28,7 @@ pub fn run_daemon(socket_path: &str) -> std::io::Result<()> {
     let (msg_tx, msg_rx) = mpsc::channel::<Message>();
 
     // spawn countdown
-    thread::spawn(move || countdown(msg_rx));
+    thread::spawn(move || start_countdown(msg_rx));
 
     // Unix socket listner
     let listner = UnixListener::bind(&socket_path)?;

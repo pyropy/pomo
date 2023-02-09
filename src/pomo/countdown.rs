@@ -7,16 +7,16 @@ enum CountdownState {
     Started {
         countdown_type: CountdownType,
         remaining_time: Duration,
-        countdown_count: u64,
+        focus_countdown_count: u64,
     },
     Stopped {
         countdown_type: CountdownType,
         remaining_time: Duration,
-        countdown_count: u64,
+        focus_countdown_count: u64,
     },
     Finished {
         countdown_type: CountdownType,
-        countdown_count: u64,
+        focus_countdown_count: u64,
     },
 }
 
@@ -26,7 +26,7 @@ impl CountdownState {
         Self::Stopped {
             countdown_type: CountdownType::Focus,
             remaining_time: Duration::from_secs(0),
-            countdown_count: 0,
+            focus_countdown_count: 1,
         }
     }
 
@@ -37,12 +37,15 @@ impl CountdownState {
         }
     }
 
-    fn next_countdown_duration(countdown_type: CountdownType, countdown_count: u64) -> Duration {
+    // returns duration of countdown based on countdown type and count
+    fn countdown_duration(countdown_type: CountdownType, focus_countdown_count: u64) -> Duration {
+        let cfg = crate::config::Config::default();
+
         match countdown_type {
-            CountdownType::Focus => Duration::from_secs(25 * 60),
-            CountdownType::Rest => match countdown_count {
-                0..=3 => Duration::from_secs(5 * 60),
-                _ => Duration::from_secs(15 * 60),
+            CountdownType::Focus => Duration::from_secs(cfg.focus_duration * 60),
+            CountdownType::Rest => match focus_countdown_count % (cfg.long_break_after + 1) { // +1 because we start with 1
+                0 => Duration::from_secs(cfg.long_break_after * 60),
+                _ => Duration::from_secs(cfg.short_break_duration * 60),
             },
         }
     }
@@ -53,36 +56,41 @@ impl CountdownState {
             Self::Started {
                 countdown_type,
                 remaining_time,
-                countdown_count,
+                focus_countdown_count,
             } => {
                 if remaining_time.as_secs() > 0 {
                     Self::Started {
                         countdown_type,
-                        countdown_count,
+                        focus_countdown_count,
                         remaining_time: remaining_time - Duration::from_secs(1),
                     }
                 } else {
+                    let focus_countdown_count = match countdown_type {
+                        CountdownType::Focus => focus_countdown_count + 1,
+                        CountdownType::Rest => focus_countdown_count,
+                    };
+
                     Self::Finished {
                         countdown_type,
-                        countdown_count: countdown_count + 1,
+                        focus_countdown_count,
                     }
                 }
             }
             Self::Stopped {
                 countdown_type,
                 remaining_time,
-                countdown_count,
+                focus_countdown_count,
             } => Self::Stopped {
                 countdown_type,
                 remaining_time,
-                countdown_count,
+                focus_countdown_count,
             },
             Self::Finished {
                 countdown_type,
-                countdown_count,
+                focus_countdown_count,
             } => Self::Finished {
                 countdown_type,
-                countdown_count,
+                focus_countdown_count,
             },
         }
     }
@@ -93,51 +101,51 @@ impl CountdownState {
             Self::Started {
                 countdown_type,
                 remaining_time,
-                countdown_count,
+                focus_countdown_count,
             } => match msg {
                 Message::Stop => Some(Self::Stopped {
                     countdown_type: *countdown_type,
                     remaining_time: *remaining_time,
-                    countdown_count: *countdown_count,
+                    focus_countdown_count: *focus_countdown_count,
                 }),
                 Message::Start => None,
             },
             Self::Stopped {
                 countdown_type,
                 remaining_time,
-                countdown_count,
+                focus_countdown_count,
             } => match msg {
                 Message::Start => match *remaining_time {
                     Duration::ZERO => Some(Self::Started {
-                        remaining_time: Self::next_countdown_duration(
+                        remaining_time: Self::countdown_duration(
                             *countdown_type,
-                            *countdown_count,
+                            *focus_countdown_count,
                         ),
                         countdown_type: *countdown_type,
-                        countdown_count: *countdown_count,
+                        focus_countdown_count: *focus_countdown_count,
                     }),
                     _ => Some(Self::Started {
                         remaining_time: *remaining_time,
                         countdown_type: *countdown_type,
-                        countdown_count: *countdown_count,
+                        focus_countdown_count: *focus_countdown_count,
                     }),
                 },
                 Message::Stop => None,
             },
             Self::Finished {
                 countdown_type,
-                countdown_count,
+                focus_countdown_count,
             } => match msg {
                 Message::Start => {
                     let next_countdown_type = Self::next_countdown_type(*countdown_type);
 
                     Some(Self::Started {
-                        remaining_time: Self::next_countdown_duration(
+                        remaining_time: Self::countdown_duration(
                             next_countdown_type,
-                            *countdown_count,
+                            *focus_countdown_count,
                         ),
                         countdown_type: next_countdown_type,
-                        countdown_count: *countdown_count,
+                        focus_countdown_count: *focus_countdown_count,
                     })
                 }
                 Message::Stop => None,
@@ -146,8 +154,8 @@ impl CountdownState {
     }
 }
 
-// countdown creates new state machine, handles messages and updates state every second
-pub fn countdown(msg_rx: Receiver<Message>) {
+// start_countdown creates new state machine, handles messages and updates state every second
+pub fn start_countdown(msg_rx: Receiver<Message>) {
     let mut countdown_state = CountdownState::new();
 
     loop {
@@ -162,7 +170,7 @@ pub fn countdown(msg_rx: Receiver<Message>) {
 
         // next state
         countdown_state = countdown_state.next();
-        println!("{:?}", countdown_state);
+        eprintln!("{:?}", countdown_state);
         thread::sleep(Duration::from_secs(1));
     }
 }
