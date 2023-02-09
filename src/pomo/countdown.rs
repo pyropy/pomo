@@ -30,8 +30,8 @@ impl CountdownState {
         }
     }
 
-    fn next_countdown_type(countdown_type: CountdownType) -> CountdownType {
-        match countdown_type {
+    fn next_countdown_type(prev_countdown_type: CountdownType) -> CountdownType {
+        match prev_countdown_type {
             CountdownType::Focus => CountdownType::Rest,
             CountdownType::Rest => CountdownType::Focus,
         }
@@ -43,7 +43,8 @@ impl CountdownState {
 
         match countdown_type {
             CountdownType::Focus => Duration::from_secs(cfg.focus_duration * 60),
-            CountdownType::Rest => match focus_countdown_count % (cfg.long_break_after + 1) { // +1 because we start with 1
+            CountdownType::Rest => match focus_countdown_count % (cfg.long_break_after + 1) {
+                // +1 because we start with 1
                 0 => Duration::from_secs(cfg.long_break_after * 60),
                 _ => Duration::from_secs(cfg.short_break_duration * 60),
             },
@@ -96,7 +97,7 @@ impl CountdownState {
     }
 
     // handles message
-    pub fn handle_message(&mut self, msg: Message) -> Option<CountdownState> {
+    pub fn handle_message(self, msg: Message) -> Option<CountdownState> {
         match self {
             Self::Started {
                 countdown_type,
@@ -104,9 +105,9 @@ impl CountdownState {
                 focus_countdown_count,
             } => match msg {
                 Message::Stop => Some(Self::Stopped {
-                    countdown_type: *countdown_type,
-                    remaining_time: *remaining_time,
-                    focus_countdown_count: *focus_countdown_count,
+                    countdown_type,
+                    remaining_time,
+                    focus_countdown_count,
                 }),
                 Message::Start => None,
             },
@@ -115,19 +116,19 @@ impl CountdownState {
                 remaining_time,
                 focus_countdown_count,
             } => match msg {
-                Message::Start => match *remaining_time {
+                Message::Start => match remaining_time {
                     Duration::ZERO => Some(Self::Started {
                         remaining_time: Self::countdown_duration(
-                            *countdown_type,
-                            *focus_countdown_count,
+                            countdown_type,
+                            focus_countdown_count,
                         ),
-                        countdown_type: *countdown_type,
-                        focus_countdown_count: *focus_countdown_count,
+                        countdown_type,
+                        focus_countdown_count,
                     }),
                     _ => Some(Self::Started {
-                        remaining_time: *remaining_time,
-                        countdown_type: *countdown_type,
-                        focus_countdown_count: *focus_countdown_count,
+                        remaining_time,
+                        countdown_type,
+                        focus_countdown_count,
                     }),
                 },
                 Message::Stop => None,
@@ -137,15 +138,15 @@ impl CountdownState {
                 focus_countdown_count,
             } => match msg {
                 Message::Start => {
-                    let next_countdown_type = Self::next_countdown_type(*countdown_type);
+                    let next_countdown_type = Self::next_countdown_type(countdown_type);
 
                     Some(Self::Started {
                         remaining_time: Self::countdown_duration(
                             next_countdown_type,
-                            *focus_countdown_count,
+                            focus_countdown_count,
                         ),
                         countdown_type: next_countdown_type,
-                        focus_countdown_count: *focus_countdown_count,
+                        focus_countdown_count,
                     })
                 }
                 Message::Stop => None,
