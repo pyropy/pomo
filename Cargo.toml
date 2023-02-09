@@ -1,0 +1,16 @@
+[package]
+name = "pomo"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "pomo"
+path = "src/pomo/lib.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bincode = "1.3.3"
+serde = { version = "1.0.152", features = ["derive"] }
+clap = { version = "4.0.17", features = ["derive"] }
+
