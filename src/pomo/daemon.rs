@@ -4,10 +4,11 @@ use std::{
     os::unix::net::{UnixListener, UnixStream},
     path::Path,
     sync::mpsc::{self, Sender},
-    thread,
+    thread, process::exit,
 };
 
 use bincode;
+use lockfile::Lockfile;
 
 use crate::countdown::start_countdown;
 use crate::types::Message;
@@ -19,6 +20,13 @@ pub fn run_daemon(socket_path: &str) -> std::io::Result<()> {
     // 4. Listen to messages at unix socket and pass them to our countdown timer
     // 5. Release lock on shutdown (kill)
     let socket_path = Path::new(socket_path);
+    match Lockfile::create("/tmp/pomo-daemon.lock") {
+        Ok(_lock) => (),
+        Err(_) => {
+            println!("Daemon already running");
+            exit(1);
+        }
+    }
 
     if socket_path.exists() {
         fs::remove_file(socket_path)?;
