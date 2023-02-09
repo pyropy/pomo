@@ -10,7 +10,7 @@ use std::{
 use bincode;
 
 use crate::countdown::countdown;
-use crate::types::{Message};
+use crate::types::Message;
 
 pub fn run_daemon(socket_path: &str) -> std::io::Result<()> {
     // 1. Create new lock to prevent spawning new daemons
@@ -32,7 +32,6 @@ pub fn run_daemon(socket_path: &str) -> std::io::Result<()> {
 
     // Unix socket listner
     let listner = UnixListener::bind(&socket_path)?;
-    listner.set_nonblocking(true)?;
 
     // daemon loop
     loop {
@@ -63,5 +62,6 @@ pub fn send_message(socket_path: &str, msg: Message) -> std::io::Result<()> {
     let mut stream = UnixStream::connect(socket_path)?;
     let serialized = bincode::serialize(&msg).unwrap();
     stream.write_all(&serialized)?;
+    stream.shutdown(std::net::Shutdown::Write)?;
     Ok(())
 }
