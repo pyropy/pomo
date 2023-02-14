@@ -2,29 +2,28 @@ use std::{
     fs,
     io::{Read, Write},
     os::unix::net::{UnixListener, UnixStream},
-    path::Path,
+    path::{Path, PathBuf},
     sync::mpsc::{self, Sender},
-    thread, process::exit,
+    thread,
 };
 
 use bincode;
 use lockfile::Lockfile;
 
-use crate::countdown::start_countdown;
 use crate::types::Message;
+use crate::{config::Config, countdown::start_countdown};
 
-pub fn run_daemon(socket_path: &str) -> std::io::Result<()> {
-    // 1. Create new lock to prevent spawning new daemons
-    // 2. Create unix socket
-    // 3. Spawn new countdown process in new thread
-    // 4. Listen to messages at unix socket and pass them to our countdown timer
-    // 5. Release lock on shutdown (kill)
+pub fn run_daemon(cfg_base_path: PathBuf, socket_path: &str) -> std::io::Result<()> {
+    if !cfg_base_path.exists() {
+        panic!("Config not found. Please run: pomo init")
+    }
+
+    let cfg = Config::load(cfg_base_path).unwrap();
     let socket_path = Path::new(socket_path);
     match Lockfile::create("/tmp/pomo-daemon.lock") {
         Ok(_lock) => (),
         Err(_) => {
-            println!("Daemon already running");
-            exit(1);
+            panic!("Daemon already running");
         }
     }
 
@@ -36,7 +35,7 @@ pub fn run_daemon(socket_path: &str) -> std::io::Result<()> {
     let (msg_tx, msg_rx) = mpsc::channel::<Message>();
 
     // spawn countdown
-    thread::spawn(move || start_countdown(msg_rx));
+    thread::spawn(move || start_countdown(cfg, msg_rx));
 
     // Unix socket listner
     let listner = UnixListener::bind(&socket_path)?;

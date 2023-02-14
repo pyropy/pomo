@@ -1,20 +1,26 @@
 use std::{sync::mpsc::Receiver, thread, time::Duration};
 
-use crate::types::{CountdownType, Message};
+use crate::{
+    config::Config,
+    types::{CountdownType, Message},
+};
 
 #[derive(Debug, Clone, Copy)]
 enum CountdownState {
     Started {
+        config: Config,
         countdown_type: CountdownType,
         remaining_time: Duration,
         focus_countdown_count: u64,
     },
     Stopped {
+        config: Config,
         countdown_type: CountdownType,
         remaining_time: Duration,
         focus_countdown_count: u64,
     },
     Finished {
+        config: Config,
         countdown_type: CountdownType,
         focus_countdown_count: u64,
     },
@@ -22,8 +28,9 @@ enum CountdownState {
 
 // Countdown state machine
 impl CountdownState {
-    pub fn new() -> Self {
+    pub fn new(config: Config) -> Self {
         Self::Stopped {
+            config,
             countdown_type: CountdownType::Focus,
             remaining_time: Duration::from_secs(0),
             focus_countdown_count: 1,
@@ -38,9 +45,11 @@ impl CountdownState {
     }
 
     // returns duration of countdown based on countdown type and count
-    fn countdown_duration(countdown_type: CountdownType, focus_countdown_count: u64) -> Duration {
-        let cfg = crate::config::Config::default();
-
+    fn countdown_duration(
+        cfg: Config,
+        countdown_type: CountdownType,
+        focus_countdown_count: u64,
+    ) -> Duration {
         match countdown_type {
             CountdownType::Focus => Duration::from_secs(cfg.focus_duration * 60),
             CountdownType::Rest => match focus_countdown_count % (cfg.long_break_after + 1) {
@@ -55,12 +64,14 @@ impl CountdownState {
     pub fn next(self) -> CountdownState {
         match self {
             Self::Started {
+                config,
                 countdown_type,
                 remaining_time,
                 focus_countdown_count,
             } => {
                 if remaining_time.as_secs() > 0 {
                     Self::Started {
+                        config,
                         countdown_type,
                         focus_countdown_count,
                         remaining_time: remaining_time - Duration::from_secs(1),
@@ -72,24 +83,29 @@ impl CountdownState {
                     };
 
                     Self::Finished {
+                        config,
                         countdown_type,
                         focus_countdown_count,
                     }
                 }
             }
             Self::Stopped {
+                config,
                 countdown_type,
                 remaining_time,
                 focus_countdown_count,
             } => Self::Stopped {
+                config,
                 countdown_type,
                 remaining_time,
                 focus_countdown_count,
             },
             Self::Finished {
+                config,
                 countdown_type,
                 focus_countdown_count,
             } => Self::Finished {
+                config,
                 countdown_type,
                 focus_countdown_count,
             },
@@ -100,11 +116,13 @@ impl CountdownState {
     pub fn handle_message(self, msg: Message) -> Option<CountdownState> {
         match self {
             Self::Started {
+                config,
                 countdown_type,
                 remaining_time,
                 focus_countdown_count,
             } => match msg {
                 Message::Stop => Some(Self::Stopped {
+                    config,
                     countdown_type,
                     remaining_time,
                     focus_countdown_count,
@@ -112,13 +130,16 @@ impl CountdownState {
                 Message::Start => None,
             },
             Self::Stopped {
+                config,
                 countdown_type,
                 remaining_time,
                 focus_countdown_count,
             } => match msg {
                 Message::Start => match remaining_time {
                     Duration::ZERO => Some(Self::Started {
+                        config,
                         remaining_time: Self::countdown_duration(
+                            config,
                             countdown_type,
                             focus_countdown_count,
                         ),
@@ -126,6 +147,7 @@ impl CountdownState {
                         focus_countdown_count,
                     }),
                     _ => Some(Self::Started {
+                        config,
                         remaining_time,
                         countdown_type,
                         focus_countdown_count,
@@ -134,6 +156,7 @@ impl CountdownState {
                 Message::Stop => None,
             },
             Self::Finished {
+                config,
                 countdown_type,
                 focus_countdown_count,
             } => match msg {
@@ -141,7 +164,9 @@ impl CountdownState {
                     let next_countdown_type = Self::next_countdown_type(countdown_type);
 
                     Some(Self::Started {
+                        config,
                         remaining_time: Self::countdown_duration(
+                            config,
                             next_countdown_type,
                             focus_countdown_count,
                         ),
@@ -156,8 +181,8 @@ impl CountdownState {
 }
 
 // start_countdown creates new state machine, handles messages and updates state every second
-pub fn start_countdown(msg_rx: Receiver<Message>) {
-    let mut countdown_state = CountdownState::new();
+pub fn start_countdown(config: Config, msg_rx: Receiver<Message>) {
+    let mut countdown_state = CountdownState::new(config);
 
     loop {
         // read channel for new messages
