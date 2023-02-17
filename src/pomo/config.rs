@@ -24,8 +24,8 @@ impl Config {
         let cfg = Self::default();
         let toml_cfg = toml::to_string(&cfg).unwrap();
         let toml_cfg = toml_cfg.as_bytes();
-
         cfg_file.write_all(toml_cfg)?;
+
         Ok(())
     }
 

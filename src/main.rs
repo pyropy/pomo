@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 use dirs::home_dir;
 use pomo::config::Config;
 use pomo::daemon::{run_daemon, send_message};
+use pomo::info::current_state;
 use pomo::types::Message;
 
 #[derive(Parser)]
@@ -21,6 +22,8 @@ enum Commands {
     Start,
     /// stops pomo timer
     Stop,
+    /// Info prints current countdown state
+    Info,
 }
 
 fn main() {
@@ -34,6 +37,7 @@ fn main() {
         Some(Commands::Daemon) => run_daemon(default_config_base_path, socket_path).unwrap(),
         Some(Commands::Start) => send_message(socket_path, Message::Start).unwrap(),
         Some(Commands::Stop) => send_message(socket_path, Message::Stop).unwrap(),
+        Some(Commands::Info) => current_state(),
         None => println!("No command given"),
     }
 }

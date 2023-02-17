@@ -1,12 +1,14 @@
-use std::{sync::mpsc::Receiver, thread, time::Duration};
+use std::{fs, io::BufWriter, sync::mpsc::Receiver, thread, time::Duration};
+
+use serde::{Deserialize, Serialize};
 
 use crate::{
     config::Config,
     types::{CountdownType, Message},
 };
 
-#[derive(Debug, Clone, Copy)]
-enum CountdownState {
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum CountdownState {
     Started {
         config: Config,
         countdown_type: CountdownType,
@@ -197,6 +199,10 @@ pub fn start_countdown(config: Config, msg_rx: Receiver<Message>) {
         // next state
         countdown_state = countdown_state.next();
         eprintln!("{:?}", countdown_state);
+
+        let serialized_state = bincode::serialize(&countdown_state).unwrap();
+        fs::write("/tmp/pomo.state", serialized_state).unwrap();
+
         thread::sleep(Duration::from_secs(1));
     }
 }
